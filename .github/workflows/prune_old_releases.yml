@@ -1,0 +1,29 @@
+name: Prune Old App Releases
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  prune-old:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Delete older versioned releases (keep latest v* and pinned models)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURRENT_TAG="${{ github.event.release.tag_name }}"
+          if [[ "$CURRENT_TAG" != v* ]]; then
+            echo "Not a versioned app release ($CURRENT_TAG). Skipping prune."
+            exit 0
+          fi
+          RELEASES=$(gh release list --limit 50 --json tagName -q '.[].tagName')
+          for TAG in $RELEASES; do
+            if [ "$TAG" != "$CURRENT_TAG" ] && [ "$TAG" != "models" ] && [[ "$TAG" == v* ]]; then
+              echo "Pruning old release: $TAG"
+              gh release delete "$TAG" --cleanup-tag --yes || true
+            fi
+          done
